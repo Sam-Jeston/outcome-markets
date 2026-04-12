@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, TransferChecked};
 use pyth_solana_receiver_sdk::price_update::{Price, PriceUpdateV2, VerificationLevel};

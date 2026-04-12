@@ -10,7 +10,10 @@ name = "outcome_markets"
 
 [features]
 default = []
+anchor-debug = []
 cpi = ["no-entrypoint"]
+custom-heap = []
+custom-panic = []
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
