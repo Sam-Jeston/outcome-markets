@@ -2598,6 +2598,7 @@ dependencies = [
  "pythnet-sdk",
  "serde_json",
  "solana-account 3.0.0",
+ "solana-clock 3.0.1",
  "solana-keypair 3.0.1",
  "solana-message 3.0.1",
  "solana-pubkey 3.0.0",

@@ -7,9 +7,10 @@ use spl_token::state::Account as TokenAccount;
 
 use crate::helpers::{
     account::load_account,
+    clock::set_unix_timestamp,
     market::{initialize_market_ix, merge_ix, split_ix, ONE_USDC, USDC_MINT},
     program::load_outcome_markets_program,
-    token::create_token_account,
+    token::{create_mint_account, create_token_account},
     transaction::prepare_v0_tx,
 };
 
@@ -109,6 +110,97 @@ fn initialize_split_and_merge_round_trip_collateral() {
     assert_eq!(market_account.resolution, Resolution::Unresolved);
     assert_eq!(market_account.yes_mint, yes_mint);
     assert_eq!(market_account.no_mint, no_mint);
+}
+
+#[test]
+fn split_and_merge_support_non_six_decimal_collateral() {
+    const COLLATERAL_UNIT: u64 = 1_000_000_000;
+
+    let svm_user = SKeypair::new();
+    let user = Keypair::from_bytes(&svm_user.to_bytes()).unwrap();
+
+    let mut svm = LiteSVM::new();
+    load_outcome_markets_program(&mut svm);
+
+    svm.airdrop(&user.pubkey().to_bytes().into(), 1_000_000_000)
+        .unwrap();
+    set_unix_timestamp(&mut svm, 1);
+
+    let collateral_mint = create_mint_account(&mut svm, 9);
+    let user_collateral_account =
+        create_token_account(&mut svm, &user.pubkey(), &collateral_mint, 5 * COLLATERAL_UNIT);
+    let params = InitializeMarketParams {
+        price_feed_id: FEED_ID,
+        end_time: 100,
+        market_type: MarketType::AbovePrice {
+            price: 100_000_000,
+            exponent: -8,
+        },
+        start_time: 10,
+    };
+
+    let (initialize_ix, market, yes_mint, no_mint, collateral_vault) =
+        initialize_market_ix(user.pubkey(), collateral_mint, params);
+    let init_tx = prepare_v0_tx(&mut svm, &svm_user.pubkey(), &[&svm_user], &[], &[initialize_ix]);
+    svm.send_transaction(init_tx).unwrap();
+
+    let user_yes_token_account = create_token_account(&mut svm, &user.pubkey(), &yes_mint, 0);
+    let user_no_token_account = create_token_account(&mut svm, &user.pubkey(), &no_mint, 0);
+
+    let split_instruction = split_ix(
+        user.pubkey(),
+        market,
+        collateral_mint,
+        yes_mint,
+        no_mint,
+        collateral_vault,
+        user_collateral_account,
+        user_yes_token_account,
+        user_no_token_account,
+        COLLATERAL_UNIT,
+    );
+    let split_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[split_instruction],
+    );
+    svm.send_transaction(split_tx).unwrap();
+
+    assert_eq!(
+        token_balance(&svm, &user_collateral_account),
+        4 * COLLATERAL_UNIT
+    );
+    assert_eq!(token_balance(&svm, &collateral_vault), COLLATERAL_UNIT);
+    assert_eq!(token_balance(&svm, &user_yes_token_account), COLLATERAL_UNIT);
+    assert_eq!(token_balance(&svm, &user_no_token_account), COLLATERAL_UNIT);
+
+    let merge_instruction = merge_ix(
+        user.pubkey(),
+        market,
+        collateral_mint,
+        yes_mint,
+        no_mint,
+        collateral_vault,
+        user_collateral_account,
+        user_yes_token_account,
+        user_no_token_account,
+        COLLATERAL_UNIT,
+    );
+    let merge_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[merge_instruction],
+    );
+    svm.send_transaction(merge_tx).unwrap();
+
+    assert_eq!(
+        token_balance(&svm, &user_collateral_account),
+        5 * COLLATERAL_UNIT
+    );
 }
 
 fn read_market(svm: &LiteSVM, market: &Pubkey) -> OutcomeMarket {

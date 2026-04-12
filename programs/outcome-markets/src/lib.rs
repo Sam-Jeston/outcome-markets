@@ -8,7 +8,7 @@ pub mod constants;
 pub mod error;
 pub mod state;
 
-use constants::{COLLATERAL_VAULT_SEED, MARKET_SEED, NO_MINT_SEED, USDC_DECIMALS, YES_MINT_SEED};
+use constants::{COLLATERAL_VAULT_SEED, MARKET_SEED, NO_MINT_SEED, YES_MINT_SEED};
 use error::OutcomeMarketsError;
 use state::{InitializeMarketParams, OutcomeMarket, RecordedPrice, Resolution};
 
@@ -169,6 +169,10 @@ pub mod outcome_markets {
             market.start_price.is_none(),
             OutcomeMarketsError::StartPriceAlreadySet
         );
+        require!(
+            Clock::get()?.unix_timestamp >= market.start_time,
+            OutcomeMarketsError::MarketStartTimeNotReached
+        );
 
         let price = read_verified_price(&ctx.accounts.price_update, &market.price_feed_id)?;
         require!(
@@ -187,6 +191,10 @@ pub mod outcome_markets {
         require!(
             !market.is_resolved(),
             OutcomeMarketsError::MarketAlreadyResolved
+        );
+        require!(
+            Clock::get()?.unix_timestamp >= market.end_time,
+            OutcomeMarketsError::MarketEndTimeNotReached
         );
 
         let price = read_verified_price(&ctx.accounts.price_update, &market.price_feed_id)?;
@@ -210,26 +218,25 @@ pub mod outcome_markets {
         require!(amount > 0, OutcomeMarketsError::InvalidAmount);
 
         let market = ctx.accounts.market.as_ref();
-        let (winning_mint, winning_token_account) = match market.resolution {
-            Resolution::Yes => (
-                ctx.accounts.yes_mint.as_ref(),
-                ctx.accounts.user_yes_token_account.as_ref(),
-            ),
-            Resolution::No => (
-                ctx.accounts.no_mint.as_ref(),
-                ctx.accounts.user_no_token_account.as_ref(),
-            ),
+        let expected_outcome_mint = match market.resolution {
+            Resolution::Yes => market.yes_mint,
+            Resolution::No => market.no_mint,
             Resolution::Unresolved => {
                 return err!(OutcomeMarketsError::MarketNotResolved);
             }
         };
+        require_keys_eq!(
+            ctx.accounts.outcome_mint.key(),
+            expected_outcome_mint,
+            OutcomeMarketsError::InvalidOutcomeMint
+        );
 
         token::burn(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
                 Burn {
-                    mint: winning_mint.to_account_info(),
-                    from: winning_token_account.to_account_info(),
+                    mint: ctx.accounts.outcome_mint.to_account_info(),
+                    from: ctx.accounts.user_outcome_token_account.to_account_info(),
                     authority: ctx.accounts.user.to_account_info(),
                 },
             ),
@@ -293,9 +300,6 @@ pub struct InitializeMarket<'info> {
         token::authority = market
     )]
     pub collateral_vault: Account<'info, TokenAccount>,
-    #[account(
-        constraint = collateral_mint.decimals == USDC_DECIMALS @ OutcomeMarketsError::InvalidCollateralMintDecimals
-    )]
     pub collateral_mint: Account<'info, Mint>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -405,18 +409,14 @@ pub struct Claim<'info> {
     #[account(
         mut,
         has_one = collateral_mint @ OutcomeMarketsError::InvalidCollateralMint,
-        has_one = yes_mint @ OutcomeMarketsError::InvalidYesMint,
-        has_one = no_mint @ OutcomeMarketsError::InvalidNoMint,
         has_one = collateral_vault @ OutcomeMarketsError::InvalidCollateralVault,
     )]
     pub market: Box<Account<'info, OutcomeMarket>>,
     pub collateral_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
-    pub yes_mint: Box<Account<'info, Mint>>,
-    #[account(mut)]
-    pub no_mint: Box<Account<'info, Mint>>,
-    #[account(mut)]
     pub collateral_vault: Box<Account<'info, TokenAccount>>,
+    #[account(mut)]
+    pub outcome_mint: Box<Account<'info, Mint>>,
     #[account(
         mut,
         constraint = user_collateral_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
@@ -425,16 +425,10 @@ pub struct Claim<'info> {
     pub user_collateral_account: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
-        constraint = user_yes_token_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
-        constraint = user_yes_token_account.mint == yes_mint.key() @ OutcomeMarketsError::InvalidYesTokenAccount,
+        constraint = user_outcome_token_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
+        constraint = user_outcome_token_account.mint == outcome_mint.key() @ OutcomeMarketsError::InvalidOutcomeTokenAccount,
     )]
-    pub user_yes_token_account: Box<Account<'info, TokenAccount>>,
-    #[account(
-        mut,
-        constraint = user_no_token_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
-        constraint = user_no_token_account.mint == no_mint.key() @ OutcomeMarketsError::InvalidNoTokenAccount,
-    )]
-    pub user_no_token_account: Box<Account<'info, TokenAccount>>,
+    pub user_outcome_token_account: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 

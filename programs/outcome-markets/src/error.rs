@@ -6,10 +6,12 @@ pub enum OutcomeMarketsError {
     InvalidTimeRange,
     #[msg("The amount must be greater than zero.")]
     InvalidAmount,
-    #[msg("The collateral mint must use 6 decimals.")]
-    InvalidCollateralMintDecimals,
     #[msg("This market has already ended.")]
     MarketAlreadyEnded,
+    #[msg("The market start time has not been reached yet.")]
+    MarketStartTimeNotReached,
+    #[msg("The market end time has not been reached yet.")]
+    MarketEndTimeNotReached,
     #[msg("This market has already been resolved.")]
     MarketAlreadyResolved,
     #[msg("This market has not been resolved.")]
@@ -44,6 +46,10 @@ pub enum OutcomeMarketsError {
     InvalidYesTokenAccount,
     #[msg("The provided NO token account is invalid.")]
     InvalidNoTokenAccount,
+    #[msg("The provided outcome mint does not match the resolved market outcome.")]
+    InvalidOutcomeMint,
+    #[msg("The provided outcome token account is invalid.")]
+    InvalidOutcomeTokenAccount,
     #[msg("The token account owner is invalid.")]
     InvalidTokenOwner,
     #[msg("The price bounds for this market type are invalid.")]

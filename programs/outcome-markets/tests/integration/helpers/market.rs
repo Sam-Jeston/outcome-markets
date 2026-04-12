@@ -190,12 +190,10 @@ pub fn claim_ix(
     user: Pubkey,
     market: Pubkey,
     collateral_mint: Pubkey,
-    yes_mint: Pubkey,
-    no_mint: Pubkey,
     collateral_vault: Pubkey,
+    outcome_mint: Pubkey,
     user_collateral_account: Pubkey,
-    user_yes_token_account: Pubkey,
-    user_no_token_account: Pubkey,
+    user_outcome_token_account: Pubkey,
     amount: u64,
 ) -> Instruction {
     Instruction {
@@ -204,12 +202,10 @@ pub fn claim_ix(
             user,
             market,
             collateral_mint,
-            yes_mint,
-            no_mint,
             collateral_vault,
+            outcome_mint,
             user_collateral_account,
-            user_yes_token_account,
-            user_no_token_account,
+            user_outcome_token_account,
             token_program: spl_token::ID,
         }
         .to_account_metas(None)
