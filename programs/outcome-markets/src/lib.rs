@@ -1,8 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, TransferChecked};
-use pyth_solana_receiver_sdk::price_update::{
-    Price, PriceFeedMessage, PriceUpdateV2, VerificationLevel,
-};
+use pyth_solana_receiver_sdk::price_update::{Price, PriceUpdateV2, VerificationLevel};
 
 pub mod constants;
 pub mod error;
@@ -145,11 +143,11 @@ pub mod outcome_markets {
         )?;
 
         transfer_market_collateral(
-            &ctx.accounts.market,
+            ctx.accounts.market.as_ref(),
             &ctx.accounts.token_program,
-            &ctx.accounts.collateral_vault,
-            &ctx.accounts.collateral_mint,
-            &ctx.accounts.user_collateral_account,
+            ctx.accounts.collateral_vault.as_ref(),
+            ctx.accounts.collateral_mint.as_ref(),
+            ctx.accounts.user_collateral_account.as_ref(),
             amount,
         )
     }
@@ -209,10 +207,16 @@ pub mod outcome_markets {
     pub fn claim(ctx: Context<Claim>, amount: u64) -> Result<()> {
         require!(amount > 0, OutcomeMarketsError::InvalidAmount);
 
-        let market = &ctx.accounts.market;
+        let market = ctx.accounts.market.as_ref();
         let (winning_mint, winning_token_account) = match market.resolution {
-            Resolution::Yes => (&ctx.accounts.yes_mint, &ctx.accounts.user_yes_token_account),
-            Resolution::No => (&ctx.accounts.no_mint, &ctx.accounts.user_no_token_account),
+            Resolution::Yes => (
+                ctx.accounts.yes_mint.as_ref(),
+                ctx.accounts.user_yes_token_account.as_ref(),
+            ),
+            Resolution::No => (
+                ctx.accounts.no_mint.as_ref(),
+                ctx.accounts.user_no_token_account.as_ref(),
+            ),
             Resolution::Unresolved => {
                 return err!(OutcomeMarketsError::MarketNotResolved);
             }
@@ -233,9 +237,9 @@ pub mod outcome_markets {
         transfer_market_collateral(
             market,
             &ctx.accounts.token_program,
-            &ctx.accounts.collateral_vault,
-            &ctx.accounts.collateral_mint,
-            &ctx.accounts.user_collateral_account,
+            ctx.accounts.collateral_vault.as_ref(),
+            ctx.accounts.collateral_mint.as_ref(),
+            ctx.accounts.user_collateral_account.as_ref(),
             amount,
         )
     }
@@ -307,32 +311,32 @@ pub struct Split<'info> {
         has_one = no_mint @ OutcomeMarketsError::InvalidNoMint,
         has_one = collateral_vault @ OutcomeMarketsError::InvalidCollateralVault,
     )]
-    pub market: Account<'info, OutcomeMarket>,
-    pub collateral_mint: Account<'info, Mint>,
+    pub market: Box<Account<'info, OutcomeMarket>>,
+    pub collateral_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
-    pub yes_mint: Account<'info, Mint>,
+    pub yes_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
-    pub no_mint: Account<'info, Mint>,
+    pub no_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
-    pub collateral_vault: Account<'info, TokenAccount>,
+    pub collateral_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         constraint = user_collateral_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
         constraint = user_collateral_account.mint == collateral_mint.key() @ OutcomeMarketsError::InvalidCollateralAccount,
     )]
-    pub user_collateral_account: Account<'info, TokenAccount>,
+    pub user_collateral_account: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         constraint = user_yes_token_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
         constraint = user_yes_token_account.mint == yes_mint.key() @ OutcomeMarketsError::InvalidYesTokenAccount,
     )]
-    pub user_yes_token_account: Account<'info, TokenAccount>,
+    pub user_yes_token_account: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         constraint = user_no_token_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
         constraint = user_no_token_account.mint == no_mint.key() @ OutcomeMarketsError::InvalidNoTokenAccount,
     )]
-    pub user_no_token_account: Account<'info, TokenAccount>,
+    pub user_no_token_account: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -347,32 +351,32 @@ pub struct Merge<'info> {
         has_one = no_mint @ OutcomeMarketsError::InvalidNoMint,
         has_one = collateral_vault @ OutcomeMarketsError::InvalidCollateralVault,
     )]
-    pub market: Account<'info, OutcomeMarket>,
-    pub collateral_mint: Account<'info, Mint>,
+    pub market: Box<Account<'info, OutcomeMarket>>,
+    pub collateral_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
-    pub yes_mint: Account<'info, Mint>,
+    pub yes_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
-    pub no_mint: Account<'info, Mint>,
+    pub no_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
-    pub collateral_vault: Account<'info, TokenAccount>,
+    pub collateral_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         constraint = user_collateral_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
         constraint = user_collateral_account.mint == collateral_mint.key() @ OutcomeMarketsError::InvalidCollateralAccount,
     )]
-    pub user_collateral_account: Account<'info, TokenAccount>,
+    pub user_collateral_account: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         constraint = user_yes_token_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
         constraint = user_yes_token_account.mint == yes_mint.key() @ OutcomeMarketsError::InvalidYesTokenAccount,
     )]
-    pub user_yes_token_account: Account<'info, TokenAccount>,
+    pub user_yes_token_account: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         constraint = user_no_token_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
         constraint = user_no_token_account.mint == no_mint.key() @ OutcomeMarketsError::InvalidNoTokenAccount,
     )]
-    pub user_no_token_account: Account<'info, TokenAccount>,
+    pub user_no_token_account: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 
@@ -403,32 +407,32 @@ pub struct Claim<'info> {
         has_one = no_mint @ OutcomeMarketsError::InvalidNoMint,
         has_one = collateral_vault @ OutcomeMarketsError::InvalidCollateralVault,
     )]
-    pub market: Account<'info, OutcomeMarket>,
-    pub collateral_mint: Account<'info, Mint>,
+    pub market: Box<Account<'info, OutcomeMarket>>,
+    pub collateral_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
-    pub yes_mint: Account<'info, Mint>,
+    pub yes_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
-    pub no_mint: Account<'info, Mint>,
+    pub no_mint: Box<Account<'info, Mint>>,
     #[account(mut)]
-    pub collateral_vault: Account<'info, TokenAccount>,
+    pub collateral_vault: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         constraint = user_collateral_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
         constraint = user_collateral_account.mint == collateral_mint.key() @ OutcomeMarketsError::InvalidCollateralAccount,
     )]
-    pub user_collateral_account: Account<'info, TokenAccount>,
+    pub user_collateral_account: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         constraint = user_yes_token_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
         constraint = user_yes_token_account.mint == yes_mint.key() @ OutcomeMarketsError::InvalidYesTokenAccount,
     )]
-    pub user_yes_token_account: Account<'info, TokenAccount>,
+    pub user_yes_token_account: Box<Account<'info, TokenAccount>>,
     #[account(
         mut,
         constraint = user_no_token_account.owner == user.key() @ OutcomeMarketsError::InvalidTokenOwner,
         constraint = user_no_token_account.mint == no_mint.key() @ OutcomeMarketsError::InvalidNoTokenAccount,
     )]
-    pub user_no_token_account: Account<'info, TokenAccount>,
+    pub user_no_token_account: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 
