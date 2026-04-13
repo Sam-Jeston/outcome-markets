@@ -6,10 +6,15 @@ use pyth_solana_receiver_sdk::price_update::{Price, PriceUpdateV2, VerificationL
 
 pub mod constants;
 pub mod error;
+pub mod events;
 pub mod state;
 
 use constants::{COLLATERAL_VAULT_SEED, MARKET_SEED, NO_MINT_SEED, YES_MINT_SEED};
 use error::OutcomeMarketsError;
+use events::{
+    MarketClaimedEvent, MarketInitializedEvent, MarketMergedEvent, MarketResolvedEvent,
+    MarketSplitEvent, MarketStartPriceSetEvent,
+};
 use state::{InitializeMarketParams, OutcomeMarket, RecordedPrice, Resolution};
 
 declare_id!("23uBqw2FZEUAj5JtTuzCHidyijuNZQmqvMTDPAjXJp6U");
@@ -22,10 +27,12 @@ pub mod outcome_markets {
         ctx: Context<InitializeMarket>,
         params: InitializeMarketParams,
     ) -> Result<()> {
+        let clock = Clock::get()?;
+        let market_key = ctx.accounts.market.key();
         params.validate()?;
 
         require!(
-            Clock::get()?.unix_timestamp < params.end_time,
+            clock.unix_timestamp < params.end_time,
             OutcomeMarketsError::MarketAlreadyEnded
         );
 
@@ -48,17 +55,36 @@ pub mod outcome_markets {
         market.no_mint_bump = ctx.bumps.no_mint;
         market.collateral_vault_bump = ctx.bumps.collateral_vault;
 
+        emit!(MarketInitializedEvent {
+            market: market_key,
+            creator: market.creator,
+            collateral_mint: market.collateral_mint,
+            yes_mint: market.yes_mint,
+            no_mint: market.no_mint,
+            collateral_vault: market.collateral_vault,
+            price_feed_id: market.price_feed_id,
+            market_type: market.market_type.clone(),
+            start_time: market.start_time,
+            end_time: market.end_time,
+            market_bump: market.bump,
+            yes_mint_bump: market.yes_mint_bump,
+            no_mint_bump: market.no_mint_bump,
+            collateral_vault_bump: market.collateral_vault_bump,
+            emitted_at: clock.unix_timestamp,
+        });
+
         Ok(())
     }
 
     pub fn split(ctx: Context<Split>, amount: u64) -> Result<()> {
+        let clock = Clock::get()?;
         require!(amount > 0, OutcomeMarketsError::InvalidAmount);
         require!(
             !ctx.accounts.market.is_resolved(),
             OutcomeMarketsError::MarketAlreadyResolved
         );
         require!(
-            Clock::get()?.unix_timestamp < ctx.accounts.market.end_time,
+            clock.unix_timestamp < ctx.accounts.market.end_time,
             OutcomeMarketsError::MarketClosedForSplits
         );
 
@@ -114,6 +140,20 @@ pub mod outcome_markets {
             amount,
         )?;
 
+        emit!(MarketSplitEvent {
+            market: ctx.accounts.market.key(),
+            user: ctx.accounts.user.key(),
+            collateral_mint: ctx.accounts.collateral_mint.key(),
+            yes_mint: ctx.accounts.yes_mint.key(),
+            no_mint: ctx.accounts.no_mint.key(),
+            collateral_vault: ctx.accounts.collateral_vault.key(),
+            user_collateral_account: ctx.accounts.user_collateral_account.key(),
+            user_yes_token_account: ctx.accounts.user_yes_token_account.key(),
+            user_no_token_account: ctx.accounts.user_no_token_account.key(),
+            amount,
+            emitted_at: clock.unix_timestamp,
+        });
+
         Ok(())
     }
 
@@ -151,11 +191,29 @@ pub mod outcome_markets {
             ctx.accounts.collateral_mint.as_ref(),
             ctx.accounts.user_collateral_account.as_ref(),
             amount,
-        )
+        )?;
+
+        emit!(MarketMergedEvent {
+            market: ctx.accounts.market.key(),
+            user: ctx.accounts.user.key(),
+            collateral_mint: ctx.accounts.collateral_mint.key(),
+            yes_mint: ctx.accounts.yes_mint.key(),
+            no_mint: ctx.accounts.no_mint.key(),
+            collateral_vault: ctx.accounts.collateral_vault.key(),
+            user_collateral_account: ctx.accounts.user_collateral_account.key(),
+            user_yes_token_account: ctx.accounts.user_yes_token_account.key(),
+            user_no_token_account: ctx.accounts.user_no_token_account.key(),
+            amount,
+            emitted_at: Clock::get()?.unix_timestamp,
+        });
+
+        Ok(())
     }
 
     pub fn set_start_price(ctx: Context<SetStartPrice>) -> Result<()> {
+        let market_key = ctx.accounts.market.key();
         let market = &mut ctx.accounts.market;
+        let clock = Clock::get()?;
 
         require!(
             market.market_type.supports_start_price(),
@@ -170,27 +228,39 @@ pub mod outcome_markets {
             OutcomeMarketsError::StartPriceAlreadySet
         );
         require!(
-            Clock::get()?.unix_timestamp >= market.start_time,
+            clock.unix_timestamp >= market.start_time,
             OutcomeMarketsError::MarketStartTimeNotReached
         );
 
         let price = read_verified_price(&ctx.accounts.price_update, &market.price_feed_id)?;
         require_boundary_crossing_update(&ctx.accounts.price_update, market.start_time)?;
 
-        market.start_price = Some(RecordedPrice::from_pyth(price));
+        let start_price = RecordedPrice::from_pyth(price);
+        market.start_price = Some(start_price);
+
+        emit!(MarketStartPriceSetEvent {
+            market: market_key,
+            updater: ctx.accounts.updater.key(),
+            price_feed_id: market.price_feed_id,
+            start_time: market.start_time,
+            start_price,
+            emitted_at: clock.unix_timestamp,
+        });
 
         Ok(())
     }
 
     pub fn resolve(ctx: Context<Resolve>) -> Result<()> {
+        let market_key = ctx.accounts.market.key();
         let market = &mut ctx.accounts.market;
+        let clock = Clock::get()?;
 
         require!(
             !market.is_resolved(),
             OutcomeMarketsError::MarketAlreadyResolved
         );
         require!(
-            Clock::get()?.unix_timestamp >= market.end_time,
+            clock.unix_timestamp >= market.end_time,
             OutcomeMarketsError::MarketEndTimeNotReached
         );
 
@@ -204,6 +274,18 @@ pub mod outcome_markets {
 
         market.resolution = outcome;
         market.resolved_price = Some(resolved_price);
+
+        emit!(MarketResolvedEvent {
+            market: market_key,
+            resolver: ctx.accounts.resolver.key(),
+            price_feed_id: market.price_feed_id,
+            market_type: market.market_type.clone(),
+            start_price: market.start_price,
+            resolved_price,
+            resolution: market.resolution,
+            end_time: market.end_time,
+            emitted_at: clock.unix_timestamp,
+        });
 
         Ok(())
     }
@@ -244,7 +326,22 @@ pub mod outcome_markets {
             ctx.accounts.collateral_mint.as_ref(),
             ctx.accounts.user_collateral_account.as_ref(),
             amount,
-        )
+        )?;
+
+        emit!(MarketClaimedEvent {
+            market: ctx.accounts.market.key(),
+            user: ctx.accounts.user.key(),
+            collateral_mint: ctx.accounts.collateral_mint.key(),
+            collateral_vault: ctx.accounts.collateral_vault.key(),
+            outcome_mint: ctx.accounts.outcome_mint.key(),
+            user_collateral_account: ctx.accounts.user_collateral_account.key(),
+            user_outcome_token_account: ctx.accounts.user_outcome_token_account.key(),
+            resolution: market.resolution,
+            amount,
+            emitted_at: Clock::get()?.unix_timestamp,
+        });
+
+        Ok(())
     }
 }
 

@@ -32,6 +32,7 @@ These are the most important implementation details to understand:
 4. For `set_start_price` and `resolve`, the supplied Pyth update must be the first oracle update at or after the relevant boundary, using the rule `prev_publish_time < boundary <= publish_time`.
 5. Late submission is still allowed. The account may be posted on-chain long after the boundary, but the signed Pyth message must still be the boundary-crossing update.
 6. `merge` is allowed both before and after resolution. A matched YES/NO pair remains redeemable for collateral at all times.
+7. Every successful instruction emits an Anchor event, so indexers can reconstruct market activity directly from transaction logs.
 
 ## Market Identity And Accounts
 
@@ -339,8 +340,24 @@ The current implementation does not include:
 - disputes
 - market cancellation
 - market closure / account cleanup instructions
-- event emission
 - confidence or freshness guardrails beyond the boundary-crossing rule
+
+## Event Emission
+
+Every successful instruction emits a corresponding Anchor event:
+
+- `initialize_market` -> `MarketInitializedEvent`
+- `split` -> `MarketSplitEvent`
+- `merge` -> `MarketMergedEvent`
+- `set_start_price` -> `MarketStartPriceSetEvent`
+- `resolve` -> `MarketResolvedEvent`
+- `claim` -> `MarketClaimedEvent`
+
+These event types are included in the Anchor IDL and are intended for backend indexing.
+
+The emitted payloads include the market key plus the instruction-specific data needed to build activity feeds, position histories, and resolution records.
+
+Events are only emitted on successful instruction execution. Failed instructions do not emit events.
 
 ## TypeScript Demo
 
