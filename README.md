@@ -342,6 +342,38 @@ The current implementation does not include:
 - event emission
 - confidence or freshness guardrails beyond the boundary-crossing rule
 
+## TypeScript Demo
+
+An end-to-end example client lives at `scripts/outcome-market-demo.ts`.
+
+It demonstrates:
+
+- permissionless initialization and settlement flows
+- all current market types
+- arbitrary collateral decimals with a fresh SPL mint
+- `split`, `merge`, `set_start_price`, `resolve`, and `claim`
+- permissionless `set_start_price` / `resolve` from a different signer
+- `claim` using only the winning-side token account
+- `merge` after resolution
+
+Run it with:
+
+```bash
+yarn demo:ts
+```
+
+This script expects:
+
+- your `OutcomeMarket` program to be deployed on the target cluster
+- a wallet at `ANCHOR_WALLET` or `~/.config/solana/id.json`
+- a reachable Pyth Solana Receiver on that cluster
+
+For local validators, also set:
+
+- `PYTH_RECEIVER_PROGRAM_ID`
+- `PYTH_WORMHOLE_PROGRAM_ID`
+- `PYTH_PUSH_ORACLE_PROGRAM_ID`
+
 ## Build And Test
 
 Build the program:

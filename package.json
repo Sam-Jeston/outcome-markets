@@ -1,12 +1,17 @@
 {
   "license": "ISC",
   "scripts": {
+    "demo:ts": "node -r ts-node/register scripts/outcome-market-demo.ts",
     "test:litesvm": "cargo test -p outcome-markets --test integration -- --nocapture",
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "0.32.1"
+    "@coral-xyz/anchor": "0.32.1",
+    "@pythnetwork/hermes-client": "^3.1.0",
+    "@pythnetwork/pyth-solana-receiver": "^0.14.0",
+    "@solana/spl-token": "^0.4.14",
+    "axios": "1.15.0"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",
