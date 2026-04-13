@@ -54,4 +54,6 @@ pub enum OutcomeMarketsError {
     InvalidTokenOwner,
     #[msg("The price bounds for this market type are invalid.")]
     InvalidPriceBounds,
+    #[msg("The provided oracle update is not the first update at or after the required market timestamp.")]
+    OracleUpdateDoesNotCrossBoundary,
 }

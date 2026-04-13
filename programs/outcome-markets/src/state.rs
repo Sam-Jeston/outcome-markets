@@ -23,8 +23,14 @@ impl InitializeMarketParams {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, PartialEq, Eq)]
 pub enum MarketType {
-    AbovePrice { price: i64, exponent: i32 },
-    BelowPrice { price: i64, exponent: i32 },
+    AbovePrice {
+        price: i64,
+        exponent: i32,
+    },
+    BelowPrice {
+        price: i64,
+        exponent: i32,
+    },
     WithinRange {
         lower_price: i64,
         upper_price: i64,
@@ -124,11 +130,13 @@ impl MarketType {
                     *exponent,
                     OutcomeMarketsError::UnexpectedPriceExponent
                 );
-                Ok(if end_price.price >= *lower_price && end_price.price <= *upper_price {
-                    Resolution::Yes
-                } else {
-                    Resolution::No
-                })
+                Ok(
+                    if end_price.price >= *lower_price && end_price.price <= *upper_price {
+                        Resolution::Yes
+                    } else {
+                        Resolution::No
+                    },
+                )
             }
             Self::UpDown => {
                 let start_price =

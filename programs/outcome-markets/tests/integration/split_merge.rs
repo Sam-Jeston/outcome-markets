@@ -42,7 +42,13 @@ fn initialize_split_and_merge_round_trip_collateral() {
 
     let (initialize_ix, market, yes_mint, no_mint, collateral_vault) =
         initialize_market_ix(user.pubkey(), USDC_MINT, params);
-    let init_tx = prepare_v0_tx(&mut svm, &svm_user.pubkey(), &[&svm_user], &[], &[initialize_ix]);
+    let init_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[initialize_ix],
+    );
     svm.send_transaction(init_tx).unwrap();
 
     let user_yes_token_account = create_token_account(&mut svm, &user.pubkey(), &yes_mint, 0);
@@ -69,10 +75,7 @@ fn initialize_split_and_merge_round_trip_collateral() {
     );
     svm.send_transaction(split_tx).unwrap();
 
-    assert_eq!(
-        token_balance(&svm, &user_collateral_account),
-        4 * ONE_USDC
-    );
+    assert_eq!(token_balance(&svm, &user_collateral_account), 4 * ONE_USDC);
     assert_eq!(token_balance(&svm, &collateral_vault), ONE_USDC);
     assert_eq!(token_balance(&svm, &user_yes_token_account), ONE_USDC);
     assert_eq!(token_balance(&svm, &user_no_token_account), ONE_USDC);
@@ -98,10 +101,7 @@ fn initialize_split_and_merge_round_trip_collateral() {
     );
     svm.send_transaction(merge_tx).unwrap();
 
-    assert_eq!(
-        token_balance(&svm, &user_collateral_account),
-        5 * ONE_USDC
-    );
+    assert_eq!(token_balance(&svm, &user_collateral_account), 5 * ONE_USDC);
     assert_eq!(token_balance(&svm, &collateral_vault), 0);
     assert_eq!(token_balance(&svm, &user_yes_token_account), 0);
     assert_eq!(token_balance(&svm, &user_no_token_account), 0);
@@ -127,8 +127,12 @@ fn split_and_merge_support_non_six_decimal_collateral() {
     set_unix_timestamp(&mut svm, 1);
 
     let collateral_mint = create_mint_account(&mut svm, 9);
-    let user_collateral_account =
-        create_token_account(&mut svm, &user.pubkey(), &collateral_mint, 5 * COLLATERAL_UNIT);
+    let user_collateral_account = create_token_account(
+        &mut svm,
+        &user.pubkey(),
+        &collateral_mint,
+        5 * COLLATERAL_UNIT,
+    );
     let params = InitializeMarketParams {
         price_feed_id: FEED_ID,
         end_time: 100,
@@ -141,7 +145,13 @@ fn split_and_merge_support_non_six_decimal_collateral() {
 
     let (initialize_ix, market, yes_mint, no_mint, collateral_vault) =
         initialize_market_ix(user.pubkey(), collateral_mint, params);
-    let init_tx = prepare_v0_tx(&mut svm, &svm_user.pubkey(), &[&svm_user], &[], &[initialize_ix]);
+    let init_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[initialize_ix],
+    );
     svm.send_transaction(init_tx).unwrap();
 
     let user_yes_token_account = create_token_account(&mut svm, &user.pubkey(), &yes_mint, 0);
@@ -173,7 +183,10 @@ fn split_and_merge_support_non_six_decimal_collateral() {
         4 * COLLATERAL_UNIT
     );
     assert_eq!(token_balance(&svm, &collateral_vault), COLLATERAL_UNIT);
-    assert_eq!(token_balance(&svm, &user_yes_token_account), COLLATERAL_UNIT);
+    assert_eq!(
+        token_balance(&svm, &user_yes_token_account),
+        COLLATERAL_UNIT
+    );
     assert_eq!(token_balance(&svm, &user_no_token_account), COLLATERAL_UNIT);
 
     let merge_instruction = merge_ix(

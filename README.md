@@ -28,9 +28,9 @@ These are the most important implementation details to understand:
 
 1. The program does not enforce a canonical USDC mint address. It accepts any SPL mint and uses that mint's native decimals.
 2. The program does not fetch Pyth data or pay Pyth update fees itself. Callers must supply an already-created `PriceUpdateV2` account.
-3. `set_start_price` and `resolve` require both the on-chain `Clock` and the supplied Pyth update `publish_time` to have reached the relevant market timestamp.
-4. The program does not try to find the first update after `start_time` or `end_time`, and it does not require the closest update to those boundaries.
-5. The caller still chooses which qualifying Pyth update account is used, as long as it is fully verified and its `publish_time` is at or after the relevant boundary.
+3. `set_start_price` and `resolve` require both the on-chain `Clock` and the supplied Pyth update to have reached the relevant market timestamp.
+4. For `set_start_price` and `resolve`, the supplied Pyth update must be the first oracle update at or after the relevant boundary, using the rule `prev_publish_time < boundary <= publish_time`.
+5. Late submission is still allowed. The account may be posted on-chain long after the boundary, but the signed Pyth message must still be the boundary-crossing update.
 6. `merge` is allowed both before and after resolution. A matched YES/NO pair remains redeemable for collateral at all times.
 
 ## Market Identity And Accounts
@@ -141,6 +141,8 @@ For a price update to be accepted:
 - the account must deserialize as `PriceUpdateV2`
 - the update must contain the market's `price_feed_id`
 - the update verification level must be at least `VerificationLevel::Full`
+- for `set_start_price`, the update must satisfy `prev_publish_time < start_time <= publish_time`
+- for `resolve`, the update must satisfy `prev_publish_time < end_time <= publish_time`
 
 The program then uses `get_price_unchecked(feed_id)` on that update account.
 
@@ -149,11 +151,12 @@ What the program does not currently do:
 - it does not invoke the Pyth receiver program
 - it does not pay the Pyth update fee on-chain
 - it does not compare multiple candidate updates
-- it does not enforce "closest update to boundary"
+- it does not accept arbitrary later updates after the boundary
+- it does not enforce "closest update to boundary" beyond the first boundary-crossing observation
 - it does not check confidence intervals
 - it does not check a max age beyond the timestamp threshold
 
-This means the caller chooses which qualifying Pyth update account is used for `set_start_price` and `resolve`.
+This means the caller still supplies the update account, but the signed Pyth message must already encode the unique boundary-crossing observation for that timestamp.
 
 ## Instruction Behavior
 
@@ -238,17 +241,15 @@ Validation:
 - current `Clock::unix_timestamp` must be greater than or equal to `start_time`
 - supplied Pyth update must be fully verified
 - supplied Pyth update must match the market feed id
-- supplied Pyth update `publish_time` must be greater than or equal to `start_time`
+- supplied Pyth update must satisfy `prev_publish_time < start_time <= publish_time`
 
 Important notes:
 
 - any signer can call it
 - it can only be set once
-- the program requires both clock time and oracle publish time to have reached `start_time`
-- the program does not require the earliest qualifying update
-- the chosen start price is "first submitted valid update wins", not "first oracle update after start time"
-- because only `publish_time >= start_time` is enforced, the stored start price may come from substantially later than `start_time`
-- it may even be set after `end_time`, as long as the market has not yet been resolved
+- the program requires both clock time and the Pyth message boundary rule to have reached `start_time`
+- late submission is allowed, but only the signed update that actually crosses the `start_time` boundary is accepted
+- it may still be set after `end_time`, as long as the market has not yet been resolved and the supplied update is the start-boundary-crossing update
 
 ### `resolve`
 
@@ -263,7 +264,7 @@ Validation:
 - current `Clock::unix_timestamp` must be greater than or equal to `end_time`
 - supplied Pyth update must be fully verified
 - supplied Pyth update must match the market feed id
-- supplied Pyth update `publish_time` must be greater than or equal to `end_time`
+- supplied Pyth update must satisfy `prev_publish_time < end_time <= publish_time`
 - for `UpDown`, `start_price` must already exist
 - exponent matching rules described in the market type section must pass
 
@@ -271,9 +272,9 @@ Important notes:
 
 - any signer can call it
 - it can only be called once successfully
-- the program requires both clock time and oracle publish time to have reached `end_time`
-- the program does not require the earliest qualifying update after `end_time`
-- the caller chooses the qualifying update account
+- the program requires both clock time and the Pyth message boundary rule to have reached `end_time`
+- late submission is allowed, but only the signed update that actually crosses the `end_time` boundary is accepted
+- the caller chooses which account to submit, but a later non-crossing update is rejected even if it is fully verified
 - for `UpDown`, if no one has set the start price yet, resolution fails until `set_start_price` succeeds
 
 ### `claim(amount)`
@@ -339,7 +340,7 @@ The current implementation does not include:
 - market cancellation
 - market closure / account cleanup instructions
 - event emission
-- oracle selection logic such as "closest to boundary" or "first update after boundary"
+- confidence or freshness guardrails beyond the boundary-crossing rule
 
 ## Build And Test
 
@@ -379,5 +380,7 @@ Current integration tests cover:
 - split -> merge round trip with a non-6-decimal collateral mint
 - `UpDown` start price setting, resolution, and claim
 - `set_start_price` clock gating
+- `set_start_price` boundary-crossing enforcement with late submission
 - `resolve` clock gating
+- `resolve` boundary-crossing enforcement with late submission
 - inclusive `WithinRange` resolution at the upper boundary

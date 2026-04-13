@@ -9,9 +9,7 @@ use solana_sdk::{pubkey::Pubkey, system_program, sysvar};
 pub const USDC_MINT: Pubkey = solana_sdk::pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 pub const ONE_USDC: u64 = 1_000_000;
 
-pub fn market_pdas(
-    params: &InitializeMarketParams,
-) -> (Pubkey, Pubkey, Pubkey, Pubkey) {
+pub fn market_pdas(params: &InitializeMarketParams) -> (Pubkey, Pubkey, Pubkey, Pubkey) {
     let market = Pubkey::find_program_address(
         &[
             MARKET_SEED,

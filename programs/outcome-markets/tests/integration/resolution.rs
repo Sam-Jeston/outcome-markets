@@ -12,7 +12,7 @@ use crate::helpers::{
         claim_ix, initialize_market_ix, resolve_ix, set_start_price_ix, split_ix, ONE_USDC,
         USDC_MINT,
     },
-    oracle::create_price_update_account,
+    oracle::create_price_update_account_with_prev_publish_time,
     program::load_outcome_markets_program,
     token::create_token_account,
     transaction::prepare_v0_tx,
@@ -43,7 +43,13 @@ fn updown_market_sets_start_price_resolves_yes_and_claims() {
 
     let (initialize_ix, market, yes_mint, no_mint, collateral_vault) =
         initialize_market_ix(user.pubkey(), USDC_MINT, params);
-    let init_tx = prepare_v0_tx(&mut svm, &svm_user.pubkey(), &[&svm_user], &[], &[initialize_ix]);
+    let init_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[initialize_ix],
+    );
     svm.send_transaction(init_tx).unwrap();
 
     let user_yes_token_account = create_token_account(&mut svm, &user.pubkey(), &yes_mint, 0);
@@ -71,7 +77,15 @@ fn updown_market_sets_start_price_resolves_yes_and_claims() {
     svm.send_transaction(split_tx).unwrap();
 
     let start_price_update = Pubkey::new_unique();
-    create_price_update_account(&mut svm, &start_price_update, FEED_ID, 100_000_000, -8, 12);
+    create_price_update_account_with_prev_publish_time(
+        &mut svm,
+        &start_price_update,
+        FEED_ID,
+        100_000_000,
+        -8,
+        12,
+        9,
+    );
     let set_start_price_instruction = set_start_price_ix(user.pubkey(), market, start_price_update);
     set_unix_timestamp(&mut svm, 12);
     let set_start_price_tx = prepare_v0_tx(
@@ -84,7 +98,15 @@ fn updown_market_sets_start_price_resolves_yes_and_claims() {
     svm.send_transaction(set_start_price_tx).unwrap();
 
     let resolve_price_update = Pubkey::new_unique();
-    create_price_update_account(&mut svm, &resolve_price_update, FEED_ID, 125_000_000, -8, 101);
+    create_price_update_account_with_prev_publish_time(
+        &mut svm,
+        &resolve_price_update,
+        FEED_ID,
+        125_000_000,
+        -8,
+        101,
+        99,
+    );
     let resolve_instruction = resolve_ix(user.pubkey(), market, resolve_price_update);
     set_unix_timestamp(&mut svm, 101);
     let resolve_tx = prepare_v0_tx(
@@ -153,7 +175,13 @@ fn within_range_resolution_is_inclusive() {
 
     let (initialize_ix, market, yes_mint, no_mint, collateral_vault) =
         initialize_market_ix(user.pubkey(), USDC_MINT, params);
-    let init_tx = prepare_v0_tx(&mut svm, &svm_user.pubkey(), &[&svm_user], &[], &[initialize_ix]);
+    let init_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[initialize_ix],
+    );
     svm.send_transaction(init_tx).unwrap();
 
     let user_yes_token_account = create_token_account(&mut svm, &user.pubkey(), &yes_mint, 0);
@@ -181,7 +209,15 @@ fn within_range_resolution_is_inclusive() {
     svm.send_transaction(split_tx).unwrap();
 
     let resolve_price_update = Pubkey::new_unique();
-    create_price_update_account(&mut svm, &resolve_price_update, FEED_ID, 100_000_000, -8, 101);
+    create_price_update_account_with_prev_publish_time(
+        &mut svm,
+        &resolve_price_update,
+        FEED_ID,
+        100_000_000,
+        -8,
+        101,
+        99,
+    );
     let resolve_instruction = resolve_ix(user.pubkey(), market, resolve_price_update);
     set_unix_timestamp(&mut svm, 101);
     let resolve_tx = prepare_v0_tx(
@@ -218,11 +254,25 @@ fn set_start_price_requires_clock_to_reach_market_start_time() {
 
     let (initialize_ix, market, _yes_mint, _no_mint, _collateral_vault) =
         initialize_market_ix(user.pubkey(), USDC_MINT, params);
-    let init_tx = prepare_v0_tx(&mut svm, &svm_user.pubkey(), &[&svm_user], &[], &[initialize_ix]);
+    let init_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[initialize_ix],
+    );
     svm.send_transaction(init_tx).unwrap();
 
     let start_price_update = Pubkey::new_unique();
-    create_price_update_account(&mut svm, &start_price_update, FEED_ID, 100_000_000, -8, 10);
+    create_price_update_account_with_prev_publish_time(
+        &mut svm,
+        &start_price_update,
+        FEED_ID,
+        100_000_000,
+        -8,
+        10,
+        9,
+    );
     let set_start_price_instruction = set_start_price_ix(user.pubkey(), market, start_price_update);
 
     set_unix_timestamp(&mut svm, 9);
@@ -271,11 +321,25 @@ fn resolve_requires_clock_to_reach_market_end_time() {
 
     let (initialize_ix, market, _yes_mint, _no_mint, _collateral_vault) =
         initialize_market_ix(user.pubkey(), USDC_MINT, params);
-    let init_tx = prepare_v0_tx(&mut svm, &svm_user.pubkey(), &[&svm_user], &[], &[initialize_ix]);
+    let init_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[initialize_ix],
+    );
     svm.send_transaction(init_tx).unwrap();
 
     let resolve_price_update = Pubkey::new_unique();
-    create_price_update_account(&mut svm, &resolve_price_update, FEED_ID, 125_000_000, -8, 100);
+    create_price_update_account_with_prev_publish_time(
+        &mut svm,
+        &resolve_price_update,
+        FEED_ID,
+        125_000_000,
+        -8,
+        100,
+        99,
+    );
     let resolve_instruction = resolve_ix(user.pubkey(), market, resolve_price_update);
 
     set_unix_timestamp(&mut svm, 99);
@@ -298,6 +362,159 @@ fn resolve_requires_clock_to_reach_market_end_time() {
         &[resolve_instruction],
     );
     svm.send_transaction(on_time_tx).unwrap();
+}
+
+#[test]
+fn set_start_price_requires_update_to_cross_market_start_boundary() {
+    let svm_user = SKeypair::new();
+    let user = Keypair::from_bytes(&svm_user.to_bytes()).unwrap();
+
+    let mut svm = LiteSVM::new();
+    load_outcome_markets_program(&mut svm);
+
+    svm.airdrop(&user.pubkey().to_bytes().into(), 1_000_000_000)
+        .unwrap();
+    load_account(&mut svm, &USDC_MINT);
+
+    let params = InitializeMarketParams {
+        price_feed_id: FEED_ID,
+        end_time: 100,
+        market_type: MarketType::UpDown,
+        start_time: 10,
+    };
+
+    let (initialize_ix, market, _yes_mint, _no_mint, _collateral_vault) =
+        initialize_market_ix(user.pubkey(), USDC_MINT, params);
+    let init_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[initialize_ix],
+    );
+    svm.send_transaction(init_tx).unwrap();
+
+    let late_non_crossing_update = Pubkey::new_unique();
+    create_price_update_account_with_prev_publish_time(
+        &mut svm,
+        &late_non_crossing_update,
+        FEED_ID,
+        100_000_000,
+        -8,
+        50,
+        10,
+    );
+    let late_non_crossing_ix = set_start_price_ix(user.pubkey(), market, late_non_crossing_update);
+
+    set_unix_timestamp(&mut svm, 50);
+    let invalid_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[late_non_crossing_ix],
+    );
+    assert!(svm.send_transaction(invalid_tx).is_err());
+
+    let late_crossing_update = Pubkey::new_unique();
+    create_price_update_account_with_prev_publish_time(
+        &mut svm,
+        &late_crossing_update,
+        FEED_ID,
+        100_000_000,
+        -8,
+        12,
+        9,
+    );
+    let late_crossing_ix = set_start_price_ix(user.pubkey(), market, late_crossing_update);
+
+    svm.expire_blockhash();
+    let valid_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[late_crossing_ix],
+    );
+    svm.send_transaction(valid_tx).unwrap();
+}
+
+#[test]
+fn resolve_requires_update_to_cross_market_end_boundary() {
+    let svm_user = SKeypair::new();
+    let user = Keypair::from_bytes(&svm_user.to_bytes()).unwrap();
+
+    let mut svm = LiteSVM::new();
+    load_outcome_markets_program(&mut svm);
+
+    svm.airdrop(&user.pubkey().to_bytes().into(), 1_000_000_000)
+        .unwrap();
+    load_account(&mut svm, &USDC_MINT);
+
+    let params = InitializeMarketParams {
+        price_feed_id: FEED_ID,
+        end_time: 100,
+        market_type: MarketType::AbovePrice {
+            price: 100_000_000,
+            exponent: -8,
+        },
+        start_time: 10,
+    };
+
+    let (initialize_ix, market, _yes_mint, _no_mint, _collateral_vault) =
+        initialize_market_ix(user.pubkey(), USDC_MINT, params);
+    let init_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[initialize_ix],
+    );
+    svm.send_transaction(init_tx).unwrap();
+
+    let late_non_crossing_update = Pubkey::new_unique();
+    create_price_update_account_with_prev_publish_time(
+        &mut svm,
+        &late_non_crossing_update,
+        FEED_ID,
+        125_000_000,
+        -8,
+        150,
+        100,
+    );
+    let late_non_crossing_ix = resolve_ix(user.pubkey(), market, late_non_crossing_update);
+
+    set_unix_timestamp(&mut svm, 150);
+    let invalid_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[late_non_crossing_ix],
+    );
+    assert!(svm.send_transaction(invalid_tx).is_err());
+
+    let late_crossing_update = Pubkey::new_unique();
+    create_price_update_account_with_prev_publish_time(
+        &mut svm,
+        &late_crossing_update,
+        FEED_ID,
+        125_000_000,
+        -8,
+        101,
+        99,
+    );
+    let late_crossing_ix = resolve_ix(user.pubkey(), market, late_crossing_update);
+
+    svm.expire_blockhash();
+    let valid_tx = prepare_v0_tx(
+        &mut svm,
+        &svm_user.pubkey(),
+        &[&svm_user],
+        &[],
+        &[late_crossing_ix],
+    );
+    svm.send_transaction(valid_tx).unwrap();
 }
 
 fn read_market(svm: &LiteSVM, market: &Pubkey) -> OutcomeMarket {

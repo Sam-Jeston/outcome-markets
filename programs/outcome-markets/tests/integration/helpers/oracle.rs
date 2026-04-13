@@ -5,13 +5,14 @@ use pythnet_sdk::messages::PriceFeedMessage;
 use solana_account::Account;
 use solana_sdk::pubkey::Pubkey;
 
-pub fn create_price_update_account(
+pub fn create_price_update_account_with_prev_publish_time(
     svm: &mut LiteSVM,
     account_key: &Pubkey,
     feed_id: [u8; 32],
     price: i64,
     exponent: i32,
     publish_time: i64,
+    prev_publish_time: i64,
 ) {
     let price_update = PriceUpdateV2 {
         write_authority: Pubkey::new_unique(),
@@ -22,7 +23,7 @@ pub fn create_price_update_account(
             conf: 0,
             exponent,
             publish_time,
-            prev_publish_time: publish_time.saturating_sub(1),
+            prev_publish_time,
             ema_price: price,
             ema_conf: 0,
         },

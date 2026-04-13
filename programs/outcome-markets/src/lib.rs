@@ -175,10 +175,7 @@ pub mod outcome_markets {
         );
 
         let price = read_verified_price(&ctx.accounts.price_update, &market.price_feed_id)?;
-        require!(
-            price.publish_time >= market.start_time,
-            OutcomeMarketsError::OracleUpdateTooEarly
-        );
+        require_boundary_crossing_update(&ctx.accounts.price_update, market.start_time)?;
 
         market.start_price = Some(RecordedPrice::from_pyth(price));
 
@@ -198,10 +195,7 @@ pub mod outcome_markets {
         );
 
         let price = read_verified_price(&ctx.accounts.price_update, &market.price_feed_id)?;
-        require!(
-            price.publish_time >= market.end_time,
-            OutcomeMarketsError::OracleUpdateTooEarly
-        );
+        require_boundary_crossing_update(&ctx.accounts.price_update, market.end_time)?;
 
         let resolved_price = RecordedPrice::from_pyth(price);
         let outcome = market
@@ -441,6 +435,19 @@ fn read_verified_price(price_update: &PriceUpdateV2, feed_id: &[u8; 32]) -> Resu
     price_update
         .get_price_unchecked(feed_id)
         .map_err(|_| error!(OutcomeMarketsError::InvalidPriceUpdate))
+}
+
+fn require_boundary_crossing_update(
+    price_update: &PriceUpdateV2,
+    boundary_time: i64,
+) -> Result<()> {
+    require!(
+        price_update.price_message.prev_publish_time < boundary_time
+            && boundary_time <= price_update.price_message.publish_time,
+        OutcomeMarketsError::OracleUpdateDoesNotCrossBoundary
+    );
+
+    Ok(())
 }
 
 fn transfer_market_collateral<'info>(
