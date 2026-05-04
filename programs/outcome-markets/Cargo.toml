@@ -29,6 +29,7 @@ anchor-spl = { version = "=0.31.1", features = ["metadata"] }
 pyth-solana-receiver-sdk = "=1.0.1"
 pythnet-sdk = "=2.3.1"
 solana-security-txt = "1.1.2"
+default-env = "0.1.1"
 
 [dev-dependencies]
 assert_matches = "=1.5.0"

@@ -2,9 +2,8 @@
 
 use anchor_lang::prelude::*;
 use anchor_spl::metadata::{
-    create_metadata_accounts_v3,
-    mpl_token_metadata::types::DataV2,
-    CreateMetadataAccountsV3, Metadata,
+    create_metadata_accounts_v3, mpl_token_metadata::types::DataV2, CreateMetadataAccountsV3,
+    Metadata,
 };
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, TransferChecked};
 use pyth_solana_receiver_sdk::price_update::{Price, PriceUpdateV2, VerificationLevel};
@@ -20,13 +19,32 @@ use constants::{
 };
 use error::OutcomeMarketsError;
 use events::{
-    MarketClaimedEvent, MarketInitializedEvent, MarketMergedEvent,
-    MarketMetadataInitializedEvent, MarketResolvedEvent, MarketSplitEvent,
-    MarketStartPriceSetEvent, OutcomeSide,
+    MarketClaimedEvent, MarketInitializedEvent, MarketMergedEvent, MarketMetadataInitializedEvent,
+    MarketResolvedEvent, MarketSplitEvent, MarketStartPriceSetEvent, OutcomeSide,
 };
 use state::{InitializeMarketParams, OutcomeMarket, RecordedPrice, Resolution};
 
 declare_id!("23uBqw2FZEUAj5JtTuzCHidyijuNZQmqvMTDPAjXJp6U");
+
+#[cfg(not(feature = "no-entrypoint"))]
+use {default_env::default_env, solana_security_txt::security_txt};
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "OutcomeMarkets",
+    project_url: "https://tapebound.xyz",
+    contacts: "email:sam@tapebound.xyz",
+    policy: "https://tapebound.xyz",
+
+    // Optional Fields
+    preferred_languages: "en",
+    source_code: "https://github.com/Sam-Jeston/outcome-markets",
+    source_revision: "87b416a41d2f4beae83e6bb0f3484b7dd49f6a0c",
+    source_release: "",
+    encryption: "",
+    auditors: "",
+    acknowledgements: "Thank you for helping this open source passion project!"
+}
 
 #[program]
 pub mod outcome_markets {
