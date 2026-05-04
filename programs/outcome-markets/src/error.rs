@@ -56,4 +56,12 @@ pub enum OutcomeMarketsError {
     InvalidPriceBounds,
     #[msg("The provided oracle update is not the first update at or after the required market timestamp.")]
     OracleUpdateDoesNotCrossBoundary,
+    #[msg("The provided outcome side is invalid; expected YES or NO mint.")]
+    InvalidOutcomeSide,
+    #[msg("Metadata name exceeds the maximum allowed length.")]
+    MetadataNameTooLong,
+    #[msg("Metadata symbol exceeds the maximum allowed length.")]
+    MetadataSymbolTooLong,
+    #[msg("Metadata uri exceeds the maximum allowed length.")]
+    MetadataUriTooLong,
 }

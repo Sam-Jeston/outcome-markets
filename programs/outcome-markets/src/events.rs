@@ -75,6 +75,24 @@ pub struct MarketResolvedEvent {
 }
 
 #[event]
+pub struct MarketMetadataInitializedEvent {
+    pub market: Pubkey,
+    pub mint: Pubkey,
+    pub metadata: Pubkey,
+    pub side: OutcomeSide,
+    pub name: String,
+    pub symbol: String,
+    pub uri: String,
+    pub emitted_at: i64,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OutcomeSide {
+    Yes,
+    No,
+}
+
+#[event]
 pub struct MarketClaimedEvent {
     pub market: Pubkey,
     pub user: Pubkey,

@@ -1,6 +1,11 @@
 #![allow(deprecated)]
 
 use anchor_lang::prelude::*;
+use anchor_spl::metadata::{
+    create_metadata_accounts_v3,
+    mpl_token_metadata::types::DataV2,
+    CreateMetadataAccountsV3, Metadata,
+};
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, TransferChecked};
 use pyth_solana_receiver_sdk::price_update::{Price, PriceUpdateV2, VerificationLevel};
 
@@ -9,11 +14,15 @@ pub mod error;
 pub mod events;
 pub mod state;
 
-use constants::{COLLATERAL_VAULT_SEED, MARKET_SEED, NO_MINT_SEED, YES_MINT_SEED};
+use constants::{
+    COLLATERAL_VAULT_SEED, MARKET_SEED, METADATA_NAME_MAX_LEN, METADATA_SYMBOL_MAX_LEN,
+    METADATA_URI_MAX_LEN, NO_MINT_SEED, YES_MINT_SEED,
+};
 use error::OutcomeMarketsError;
 use events::{
-    MarketClaimedEvent, MarketInitializedEvent, MarketMergedEvent, MarketResolvedEvent,
-    MarketSplitEvent, MarketStartPriceSetEvent,
+    MarketClaimedEvent, MarketInitializedEvent, MarketMergedEvent,
+    MarketMetadataInitializedEvent, MarketResolvedEvent, MarketSplitEvent,
+    MarketStartPriceSetEvent, OutcomeSide,
 };
 use state::{InitializeMarketParams, OutcomeMarket, RecordedPrice, Resolution};
 
@@ -343,6 +352,90 @@ pub mod outcome_markets {
 
         Ok(())
     }
+
+    pub fn initialize_metadata(
+        ctx: Context<InitializeMetadata>,
+        side: OutcomeSide,
+        name: String,
+        symbol: String,
+        uri: String,
+    ) -> Result<()> {
+        require!(
+            name.len() <= METADATA_NAME_MAX_LEN,
+            OutcomeMarketsError::MetadataNameTooLong
+        );
+        require!(
+            symbol.len() <= METADATA_SYMBOL_MAX_LEN,
+            OutcomeMarketsError::MetadataSymbolTooLong
+        );
+        require!(
+            uri.len() <= METADATA_URI_MAX_LEN,
+            OutcomeMarketsError::MetadataUriTooLong
+        );
+
+        let market = ctx.accounts.market.as_ref();
+        let expected_mint = match side {
+            OutcomeSide::Yes => market.yes_mint,
+            OutcomeSide::No => market.no_mint,
+        };
+        require_keys_eq!(
+            ctx.accounts.mint.key(),
+            expected_mint,
+            OutcomeMarketsError::InvalidOutcomeSide
+        );
+
+        let end_time_bytes = market.end_time.to_le_bytes();
+        let start_time_bytes = market.start_time.to_le_bytes();
+        let signer_seeds: &[&[u8]] = &[
+            MARKET_SEED,
+            market.price_feed_id.as_ref(),
+            end_time_bytes.as_ref(),
+            market.market_type_seed.as_ref(),
+            start_time_bytes.as_ref(),
+            &[market.bump],
+        ];
+
+        create_metadata_accounts_v3(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_metadata_program.to_account_info(),
+                CreateMetadataAccountsV3 {
+                    metadata: ctx.accounts.metadata.to_account_info(),
+                    mint: ctx.accounts.mint.to_account_info(),
+                    mint_authority: ctx.accounts.market.to_account_info(),
+                    payer: ctx.accounts.payer.to_account_info(),
+                    update_authority: ctx.accounts.market.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                    rent: ctx.accounts.rent.to_account_info(),
+                },
+                &[signer_seeds],
+            ),
+            DataV2 {
+                name: name.clone(),
+                symbol: symbol.clone(),
+                uri: uri.clone(),
+                seller_fee_basis_points: 0,
+                creators: None,
+                collection: None,
+                uses: None,
+            },
+            false,
+            true,
+            None,
+        )?;
+
+        emit!(MarketMetadataInitializedEvent {
+            market: ctx.accounts.market.key(),
+            mint: ctx.accounts.mint.key(),
+            metadata: ctx.accounts.metadata.key(),
+            side,
+            name,
+            symbol,
+            uri,
+            emitted_at: Clock::get()?.unix_timestamp,
+        });
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -521,6 +614,25 @@ pub struct Claim<'info> {
     )]
     pub user_outcome_token_account: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct InitializeMetadata<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub market: Box<Account<'info, OutcomeMarket>>,
+    /// CHECK: Constrained against `market.yes_mint` / `market.no_mint` in the handler.
+    /// Mutability is required because Metaplex updates the mint account during
+    /// `CreateMetadataAccountV3` (it sanity-checks the mint authority).
+    #[account(mut)]
+    pub mint: UncheckedAccount<'info>,
+    /// CHECK: Address is enforced by the Token Metadata program; the CPI fails if the
+    /// PDA does not match `["metadata", token_metadata_program, mint]`.
+    #[account(mut)]
+    pub metadata: UncheckedAccount<'info>,
+    pub token_metadata_program: Program<'info, Metadata>,
+    pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
 }
 
 fn read_verified_price(price_update: &PriceUpdateV2, feed_id: &[u8; 32]) -> Result<Price> {

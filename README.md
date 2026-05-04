@@ -2,7 +2,7 @@
 
 `OutcomeMarket` is an Anchor program for binary outcome markets settled against Pyth price updates.
 
-This README documents the behavior of the program as it is currently implemented in this repository. It intentionally describes actual on-chain behavior, including important edge cases and places where the current implementation is looser than an idealized market design.
+The program design closely matches Polymarket's split, merge and claim behaviour, while allowing permissionless market creation and behaviours.
 
 ## Overview
 
@@ -26,7 +26,7 @@ All amounts are raw token base units. With 6-decimal collateral, `1 USDC` is `1_
 
 These are the most important implementation details to understand:
 
-1. The program does not enforce a canonical USDC mint address. It accepts any SPL mint and uses that mint's native decimals.
+1. The program does not enforce a canonical collateral mint address. It accepts any SPL mint and uses that mint's native decimals.
 2. The program does not fetch Pyth data or pay Pyth update fees itself. Callers must supply an already-created `PriceUpdateV2` account.
 3. `set_start_price` and `resolve` require both the on-chain `Clock` and the supplied Pyth update to have reached the relevant market timestamp.
 4. For `set_start_price` and `resolve`, the supplied Pyth update must be the first oracle update at or after the relevant boundary, using the rule `prev_publish_time < boundary <= publish_time`.
@@ -147,13 +147,12 @@ For a price update to be accepted:
 
 The program then uses `get_price_unchecked(feed_id)` on that update account.
 
-What the program does not currently do:
+What the program does not do:
 
 - it does not invoke the Pyth receiver program
 - it does not pay the Pyth update fee on-chain
 - it does not compare multiple candidate updates
 - it does not accept arbitrary later updates after the boundary
-- it does not enforce "closest update to boundary" beyond the first boundary-crossing observation
 - it does not check confidence intervals
 - it does not check a max age beyond the timestamp threshold
 
